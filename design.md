@@ -22,7 +22,7 @@ When created, the load balancer would create an internal map of each host to the
 When the server gets a TCP connection, it will pass it to the request forwarding library to route it to the appropriate upstream:
 
 ```go
-func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.TCPConn) error
+func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.TCPConn)
 ```
 
 At a high level, the `HandleConnection` function will:
@@ -30,7 +30,7 @@ At a high level, the `HandleConnection` function will:
 - Iterate over each of the hosts to find the one with the fewest connections
     - The counters used for connections will be atomic (e.g. protected from concurrent access with a mutex, or use `sync/atomic` functions) to avoid multithreaded race conditions
 - Dial the host to initiate a TCP connection with it
-    - Return an error if the connection can't be established
+    - If the connection can't be established, write an error message to the `conn` passed in. Close the connection and return without further processing.
 - Increment (again, thread safely) the connection count for the host
 - In two separate goroutines, `io.Copy` the connection passed in to the connection to the upstream and vice versa
 - Block for each goroutine to signal its completion
@@ -63,6 +63,15 @@ Internally the library will use [the token bucket algorithm](http://intronetwork
 
 The bucket will use a mutex to synchronize access to its token count check to prevent multithreading issues where quick requests from the same client don't accurately read/modify the value. The rate the bucket refills will be hard coded to keep things simple, though in reality this would be configurable.
 
-
 ## Server
 
+The server is responsible for authentication and authorization before handing off the main work to the load balancing library. Authentication will be done with mTLS, with certificates stored in the repo for the sake of simplicity. Authorization will also be hard coded; we'll simply keep a struct of which upstreams are available to which clients.
+
+The server will accept TCP connections on a dedicated port for each upstream - e.g. port 7777 for application A, port 8888 for application B. Whenever it receives a connection, it will spin up a goroutine to handle it like so:
+
+- Read the client's identity from the SAN in the cert (e.g. `admin`, `user1`, `pikachu` - again, hard coded to keep things simple)
+- Check the client identity against the hard-coded authorization data
+    - If the client doesn't have access to the upstream for the port it's connected on, send it an error message, close its connection and return without further work
+- Ask the rate limiter whether the client is allowed to make a request right now
+    - If the client is rate limited, send it an error message, close its connection and return without further work
+- Forward the client's connection to the load balancing library to pass it to an appropriate host for the upstream (or send it an error and close it if there's a problem connecting to an upstream)
