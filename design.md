@@ -32,16 +32,10 @@ At a high level, the `HandleConnection` function will:
 - Dial the host to initiate a TCP connection with it
     - If the connection can't be established, write an error message to the `conn` passed in. Close the connection and return without further processing.
 - Increment (again, thread safely) the connection count for the host
+- Defer decrementing the connection count for the host
 - In two separate goroutines, `io.Copy` the connection passed in to the connection to the upstream and vice versa
 - Block for each goroutine to signal its completion
 - After completion, close both connections
-- Decrement the connection count for the host
-
-### Questions/Assumptions
-
-- How to handle context cancelation/the passed-in connection timing out?
-- Should we set a timeout on the connection to upstream?
-- Do we need to handle errors in the goroutines?
 
 ### Client Rate Limiter
 
@@ -59,9 +53,9 @@ Consumers of the library can find out whether a request is allowed using the `is
 func (rl *RateLimiter) IsRequestAllowed(ctx context.Context, clientId string) (bool, error)
 ```
 
-Internally the library will use [the token bucket algorithm](http://intronetworks.cs.luc.edu/current/html/tokenbucket.html) to rate limit requests. At creation it will construct a bucket for each client. Calling `IsRequestAllowed` will trigger the library to query the corresponding bucket and determine whether the client has enough tokens (always 1 for simplicity's sake) to make the request.
+Internally the library will use [the token bucket algorithm](https://en.wikipedia.org/wiki/Token_bucket) to rate limit requests. At creation it will construct a bucket for each client. Calling `IsRequestAllowed` will trigger the library to query the corresponding bucket and determine whether the client has enough tokens (always 1 for simplicity's sake) to make the request.
 
-The bucket will use a mutex to synchronize access to its token count check to prevent multithreading issues where quick requests from the same client don't accurately read/modify the value. The rate the bucket refills will be hard coded to keep things simple, though in reality this would be configurable.
+The bucket will use a mutex to synchronize access to its token count to prevent multithreading issues where quick requests from the same client don't accurately read/modify the value. The rate the bucket refills will be hard coded to keep things simple, though in reality this would be configurable.
 
 ## Server
 
@@ -80,7 +74,7 @@ The server will accept TCP connections on a dedicated port for each upstream - e
 ## Other Considerations
 
 - For this exercise, we'll handle errors by simply writing an error message to the client's TCP connection and closing it. In a production system we'd want something more robust - perhaps custom, documented error codes, for example.
-- This load balancer isn't scalable/couldn't be run redundantly without breaking the rate limiting and least-connection forwarding functionality, because they both run off values in memory. If, for example, we scaled to 3 load balancing servers, each would have its own count of how many connections a server had.
+- This load balancer isn't scalable/couldn't be run redundantly without breaking the rate limiting and least-connection forwarding functionality, because they both run off values in memory. If, for example, we scaled to 3 load balancing servers, each would have its own count of how many connections a host had.
     - We could solve this by moving those values into a distributed cache, so each server instance operated with the same values. At a glance, [Redis supports distributed locks](https://redis.io/docs/reference/patterns/distributed-locks/) to ensure multiple clients can't collide when reading/writing to the cache. Other distributed caches likely do as well.
 - Because the load balancer will simply `io.Copy` the connection streams back and forth to each other, by default the connections will stay open until one side closes them (or the load-balancing server crashes). This is nice for long-running processes like a remote debugger, but in reality we'd probably want to provide the option to enforce connection timeouts.
     - This could also be seen as a security/performance risk. If I have access to upstream A, I could just `echo -n "ddos" | nc server xxxx` in a loop to keep tons of connections with upstream A open and hog resources. However, this assumes upstream A isn't configured to close incoming connections automatically. And ideally the rate limiting would mitigate some of this risk.
