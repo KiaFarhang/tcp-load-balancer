@@ -75,3 +75,16 @@ The server will accept TCP connections on a dedicated port for each upstream - e
 - Ask the rate limiter whether the client is allowed to make a request right now
     - If the client is rate limited, send it an error message, close its connection and return without further work
 - Forward the client's connection to the load balancing library to pass it to an appropriate host for the upstream (or send it an error and close it if there's a problem connecting to an upstream)
+
+
+## Other Considerations
+
+- For this exercise, we'll handle errors by simply writing an error message to the client's TCP connection and closing it. In a production system we'd want something more robust - perhaps custom, documented error codes, for example.
+- This load balancer isn't scalable/couldn't be run redundantly without breaking the rate limiting and least-connection forwarding functionality, because they both run off values in memory. If, for example, we scaled to 3 load balancing servers, each would have its own count of how many connections a server had.
+    - We could solve this by moving those values into a distributed cache, so each server instance operated with the same values. At a glance, [Redis supports distributed locks](https://redis.io/docs/reference/patterns/distributed-locks/) to ensure multiple clients can't collide when reading/writing to the cache. Other distributed caches likely do as well.
+- Because the load balancer will simply `io.Copy` the connection streams back and forth to each other, by default the connections will stay open until one side closes them (or the load-balancing server crashes). This is nice for long-running processes like a remote debugger, but in reality we'd probably want to provide the option to enforce connection timeouts.
+    - This could also be seen as a security/performance risk. If I have access to upstream A, I could just `echo -n "ddos" | nc server xxxx` in a loop to keep tons of connections with upstream A open and hog resources. However, this assumes upstream A isn't configured to close incoming connections automatically. And ideally the rate limiting would mitigate some of this risk.
+- Everything hard coded in this implementation could be improved by either reading it from a configuration file or at runtime:
+    - Authorization could be delegated to a tool like [Open Policy Agent](https://www.openpolicyagent.org/)
+    - Available upstreams and their corresponding hosts could be dynamically changed at runtime, or even discovered with some kind of service discovery mechanism
+    - Rate limiting rules could be managed by a separate application, stored in a database and periodically queried + cached by the rate limiting library
