@@ -22,15 +22,16 @@ When created, the load balancer would create an internal map of each host to the
 When the server gets a TCP connection, it will pass it to the request forwarding library to route it to the appropriate upstream:
 
 ```go
-func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.TCPConn)
+func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn)
 ```
 
 At a high level, the `HandleConnection` function will:
 
 - Iterate over each of the hosts to find the one with the fewest connections
-    - The counters used for connections will be atomic (e.g. protected from concurrent access with a mutex, or use `sync/atomic` functions) to avoid multithreaded race conditions
+    - The counters used for connections will be atomic (e.g. protected from concurrent access with a mutex, or use `sync/atomic` functions) to avoid race conditions
 - Dial the host to initiate a TCP connection with it
     - If the connection can't be established, write an error message to the `conn` passed in. Close the connection and return without further processing.
+    - To avoid deadlocks, we'll use a timeout here to bail if the host doesn't respond in t seconds.
 - Increment (again, thread safely) the connection count for the host
 - Defer decrementing the connection count for the host
 - In two separate goroutines, `io.Copy` the connection passed in to the connection to the upstream and vice versa
@@ -76,9 +77,10 @@ The server will accept TCP connections on a dedicated port for each upstream - e
 - For this exercise, we'll handle errors by simply writing an error message to the client's TCP connection and closing it. In a production system we'd want something more robust - perhaps custom, documented error codes, for example.
 - This load balancer isn't scalable/couldn't be run redundantly without breaking the rate limiting and least-connection forwarding functionality, because they both run off values in memory. If, for example, we scaled to 3 load balancing servers, each would have its own count of how many connections a host had.
     - We could solve this by moving those values into a distributed cache, so each server instance operated with the same values. At a glance, [Redis supports distributed locks](https://redis.io/docs/reference/patterns/distributed-locks/) to ensure multiple clients can't collide when reading/writing to the cache. Other distributed caches likely do as well.
-- Because the load balancer will simply `io.Copy` the connection streams back and forth to each other, by default the connections will stay open until one side closes them (or the load-balancing server crashes). This is nice for long-running processes like a remote debugger, but in reality we'd probably want to provide the option to enforce connection timeouts.
-    - This could also be seen as a security/performance risk. If I have access to upstream A, I could just `echo -n "ddos" | nc server xxxx` in a loop to keep tons of connections with upstream A open and hog resources. However, this assumes upstream A isn't configured to close incoming connections automatically. And ideally the rate limiting would mitigate some of this risk.
+- Because the load balancer will simply `io.Copy` the connection streams back and forth to each other, by default the connections will stay open until one side closes them (or the load-balancing server shuts down). This is nice for long-running processes like a remote debugger, but in reality we'd probably want to provide the option to enforce connection timeouts.
+    - This could also be seen as a security/performance risk. If I have access to upstream A, I could just `echo -n "ddos" | nc server xxxx` in a new process each time to keep tons of connections with upstream A open and hog resources. However, this assumes upstream A isn't configured to close incoming connections automatically after it responds. And ideally the rate limiting would mitigate some of this risk.
 - Everything hard coded in this implementation could be improved by either reading it from a configuration file or at runtime:
     - Authorization could be delegated to a tool like [Open Policy Agent](https://www.openpolicyagent.org/)
     - Available upstreams and their corresponding hosts could be dynamically changed at runtime, or even discovered with some kind of service discovery mechanism
     - Rate limiting rules could be managed by a separate application, stored in a database and periodically queried + cached by the rate limiting library
+- The proposed function signatures include a `context.Context` because in a real-world application we'd likely use them for cancellations, deadlines, etc. I don't plan on using them much in this code, but figured it's safer to take the argument in case that changes.
