@@ -71,6 +71,17 @@ The server will accept TCP connections on a dedicated port for each upstream - e
     - If the client is rate limited, send it an error message, close its connection and return without further work
 - Forward the client's connection to the load balancing library to pass it to an appropriate host for the upstream (or send it an error and close it if there's a problem connecting to an upstream)
 
+## User Experience / Testing
+
+Clients would be able to communicate with this load balancer the way they would for any TLS-secured TCP traffic. To simplify the review process and add test coverage, I'll write end-to-end tests for the application in Go.
+
+The following scenarios are ranked in what I think are the highest priority. Depending on time constraints and reviewer interest, the last on the list may not be necessary.
+
+1. Connecting to the load balancer on a port for upstream A correctly routes you to a host for upstream A (the upstream will just be some dummy TCP listeners created in the test)
+2. Connecting to the load balancer on a port corresponding to an upstream the client isn't authorized for results in an error
+3. If upstream A has a host with 1 active connection, another request to upstream A will route to a second host with 0 active connections
+4. Making many paralell requests from the same client results in a rate-limited rejection (timing will make this hard to reproduce perfectly; will probably just throw a bunch of goroutines at it and assert at least one of them got the rate limiting error message)
+5. Same as #1, but with a "hello world" HTTP upstream instead of a raw TCP listener
 
 ## Other Considerations
 
