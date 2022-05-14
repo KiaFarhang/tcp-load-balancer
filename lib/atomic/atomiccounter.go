@@ -1,30 +1,30 @@
 // Package atomiccounter implements a simple threadsafe counter
-package atomiccounter
+package atomic
 
 import "sync"
 
-// AtomicCounter is a threadsafe integer counter
-type AtomicCounter struct {
+// Counter is a threadsafe integer counter
+type Counter struct {
 	count int
 	mu    sync.RWMutex
 }
 
 // Increment increments the counter's value
-func (a *AtomicCounter) Increment() {
+func (a *Counter) Increment() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.count++
 }
 
 // Decrement decrements the counter's value
-func (a *AtomicCounter) Decrement() {
+func (a *Counter) Decrement() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.count--
 }
 
 // Get returns the counter's current value
-func (a *AtomicCounter) Get() int {
+func (a *Counter) Get() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.count
