@@ -10,6 +10,7 @@ func Equal[T comparable](t *testing.T, got, want T) {
 }
 
 func NoError(t *testing.T, err error) {
+	t.Helper()
 	if err != nil {
 		t.Errorf("expected no error but got %v", err)
 	}
