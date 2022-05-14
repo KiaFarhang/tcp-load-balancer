@@ -1,4 +1,4 @@
-// Package atomiccounter implements a simple threadsafe counter
+// Package atomic implements a simple threadsafe counter
 package atomic
 
 import "sync"
