@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/KiaFarhang/tcp-load-balancer/lib/assert"
+	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
 )
 
 func TestLoadBalancer(t *testing.T) {
