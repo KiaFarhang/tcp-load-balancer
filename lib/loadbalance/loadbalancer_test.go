@@ -1,12 +1,70 @@
 package loadbalance
 
 import (
+	"context"
+	"io"
 	"net"
 	"sync"
 	"testing"
 
 	"github.com/KiaFarhang/tcp-load-balancer/lib/assert"
 )
+
+func TestLoadBalancer(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	loadBalancerAddress, err := net.ResolveTCPAddr("tcp", ":4444")
+	assert.NoError(t, err)
+
+	loadBalancerListener, err := net.ListenTCP("tcp", loadBalancerAddress)
+
+	assert.NoError(t, err)
+
+	defer loadBalancerListener.Close()
+
+	upstreamAddress, err := net.ResolveTCPAddr("tcp", ":5555")
+	assert.NoError(t, err)
+
+	upstreamListener, err := net.ListenTCP("tcp", upstreamAddress)
+
+	assert.NoError(t, err)
+
+	defer upstreamListener.Close()
+
+	loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
+
+	loadBalancerHandler := func(conn net.Conn) {
+		loadBalancer.HandleConnection(context.Background(), conn)
+	}
+
+	upstreamHandler := func(conn net.Conn) {
+		conn.Write([]byte("Hello World"))
+		conn.Close()
+	}
+
+	go func() {
+		conn, err := loadBalancerListener.Accept()
+		assert.NoError(t, err)
+		loadBalancerHandler(conn)
+	}()
+
+	go func() {
+		conn, err := upstreamListener.Accept()
+		assert.NoError(t, err)
+		upstreamHandler(conn)
+	}()
+
+	conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
+	assert.NoError(t, err)
+
+	bytes, err := io.ReadAll(conn)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(bytes), "Hello World")
+
+}
 
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 	t.Run("Always returns the host with the least connections", func(t *testing.T) {

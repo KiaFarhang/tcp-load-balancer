@@ -2,6 +2,8 @@
 package loadbalance
 
 import (
+	"context"
+	"io"
 	"net"
 
 	"github.com/KiaFarhang/tcp-load-balancer/lib/atomic"
@@ -38,6 +40,49 @@ func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
 	}
 
 	return &LoadBalancer{hosts}
+}
+
+/**
+HandleConnection takes a TCP connection, finds a suitable host to handle it,
+then connects to the host and streams data between the connection and host until
+both sides of the connection are closed.
+
+If the connection to the host fails, HandleConnection will write an error message
+to the incoming net.Conn and close it. It will also close the net.Conn if the communication
+with the host succeeds; callers of HandleConnection do not need to close the net.Conn
+they pass in.
+*/
+func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
+	host := lb.findHostWithLeastConnections()
+	connectionToHost, err := net.DialTCP("tcp", nil, host.address)
+
+	if err != nil {
+		conn.Write([]byte("Internal server error"))
+		conn.Close()
+		return
+	}
+
+	host.connectionCount.Increment()
+	defer host.connectionCount.Decrement()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer conn.Close()
+		defer connectionToHost.Close()
+		io.Copy(conn, connectionToHost)
+		done <- struct{}{}
+	}()
+
+	go func() {
+		defer conn.Close()
+		defer connectionToHost.Close()
+		io.Copy(connectionToHost, conn)
+		done <- struct{}{}
+	}()
+
+	<-done
+	<-done
 }
 
 func (lb *LoadBalancer) findHostWithLeastConnections() *host {
