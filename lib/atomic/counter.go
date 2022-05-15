@@ -3,27 +3,27 @@ package atomic
 
 import "sync"
 
-// Counter is a threadsafe integer counter
+// Counter is a threadsafe integer counter.
 type Counter struct {
 	count int
 	mu    sync.RWMutex
 }
 
-// Increment increments the counter's value
+// Increment increments the counter's value.
 func (a *Counter) Increment() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.count++
 }
 
-// Decrement decrements the counter's value
+// Decrement decrements the counter's value.
 func (a *Counter) Decrement() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.count--
 }
 
-// Get returns the counter's current value
+// Get returns the counter's current value.
 func (a *Counter) Get() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
