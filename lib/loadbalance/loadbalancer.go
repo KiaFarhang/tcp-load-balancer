@@ -1,4 +1,4 @@
-// Package loadbalance implements a least-connections load balancer
+// Package loadbalance implements a least-connections load balancer.
 package loadbalance
 
 import (
@@ -10,7 +10,7 @@ import (
 	"github.com/KiaFarhang/tcp-load-balancer/lib/atomic"
 )
 
-// host is an individual server that can take traffic from the load balancer
+// host is an individual server that can take traffic from the load balancer.
 type host struct {
 	address         *net.TCPAddr
 	connectionCount *atomic.Counter
