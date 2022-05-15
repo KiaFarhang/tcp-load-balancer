@@ -66,6 +66,46 @@ func TestLoadBalancer(t *testing.T) {
 
 }
 
+func TestLoadBalancer_ErrorConnectingToUpstream(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	loadBalancerAddress, err := net.ResolveTCPAddr("tcp", ":6666")
+	assert.NoError(t, err)
+
+	loadBalancerListener, err := net.ListenTCP("tcp", loadBalancerAddress)
+
+	assert.NoError(t, err)
+
+	defer loadBalancerListener.Close()
+
+	upstreamAddress, err := net.ResolveTCPAddr("tcp", ":7777")
+	assert.NoError(t, err)
+
+	// Deliberately not listening on the upstream address to force a connection error...
+
+	loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
+
+	loadBalancerHandler := func(conn net.Conn) {
+		loadBalancer.HandleConnection(context.Background(), conn)
+	}
+
+	go func() {
+		conn, err := loadBalancerListener.Accept()
+		assert.NoError(t, err)
+		loadBalancerHandler(conn)
+	}()
+
+	conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
+	assert.NoError(t, err)
+
+	bytes, err := io.ReadAll(conn)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(bytes), "Internal server error")
+}
+
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 	t.Run("Always returns the host with the least connections", func(t *testing.T) {
 		host1, err := net.ResolveTCPAddr("tcp", ":1111")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 
 	"github.com/KiaFarhang/tcp-load-balancer/lib/atomic"
 )
@@ -24,7 +25,8 @@ If two hosts have the same number of connections, the LoadBalancer will always s
 host had the lower index in the list of hosts originally passed to it.
 */
 type LoadBalancer struct {
-	hosts []*host
+	hosts  []*host
+	dialer *net.Dialer
 }
 
 /**
@@ -39,7 +41,9 @@ func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
 		hosts = append(hosts, host)
 	}
 
-	return &LoadBalancer{hosts}
+	// TODO: Will using this restrict us to localhost only, because the LocalAddr is nil?
+	// TODO: What takes precedence; the dialer timeout or the context timeout? Should we use both?
+	return &LoadBalancer{hosts, &net.Dialer{Timeout: 3 * time.Second}}
 }
 
 /**
@@ -54,7 +58,7 @@ they pass in.
 */
 func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host := lb.findHostWithLeastConnections()
-	connectionToHost, err := net.DialTCP("tcp", nil, host.address)
+	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
 		conn.Write([]byte("Internal server error"))
