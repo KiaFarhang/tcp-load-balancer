@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	clientCert, err := tls.LoadX509KeyPair("certs/client/admin.crt", "certs/client/client.key")
+	clientCert, err := tls.LoadX509KeyPair("certs/client/self-signed.pem", "certs/client/self-signed-key.pem")
 
 	if err != nil {
 		log.Fatalf("Error loading client cert: %s", err.Error())
