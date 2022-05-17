@@ -85,13 +85,11 @@ func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 
 	go func() {
 		defer conn.Close()
-		defer connectionToHost.Close()
 		io.Copy(conn, connectionToHost)
 		done <- struct{}{}
 	}()
 
 	go func() {
-		defer conn.Close()
 		defer connectionToHost.Close()
 		io.Copy(connectionToHost, conn)
 		done <- struct{}{}
