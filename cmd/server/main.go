@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net"
@@ -44,15 +45,27 @@ func main() {
 	}
 }
 
+type response struct {
+	Message string `json:"message"`
+}
+
 func handleRequest(conn net.Conn) {
 	log.Printf("Handling request from %s", conn.RemoteAddr())
 	tlsConn, ok := conn.(*tls.Conn)
 	defer conn.Close()
 	if ok {
+
 		// Server gets client cert after first i/o, so we explicitly call Handshake() to get the cert
 		tlsConn.Handshake()
 		logCertDetails(tlsConn.ConnectionState())
-		conn.Write([]byte("Hi there"))
+		response := &response{Message: "Yo girl"}
+		responseBytes, err := json.Marshal(response)
+		if err != nil {
+			conn.Write([]byte(err.Error()))
+		} else {
+			conn.Write(responseBytes)
+		}
+		//		conn.Write([]byte("Hi there"))
 		log.Printf("Done handling request from %s", conn.RemoteAddr())
 	} else {
 		log.Print("Couldn't cast connection to TCP conn")
