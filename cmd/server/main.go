@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
 	"log"
 	"net"
 )
@@ -12,13 +14,18 @@ func main() {
 		log.Fatalf("Error loading server key pair: %s", err.Error())
 	}
 
-	// clientCertPool := x509.NewCertPool()
+	caCert, err := ioutil.ReadFile("certs/ca/CA.pem")
+	if err != nil {
+		log.Fatalf("Error reading CA cert file: %s", err.Error())
+	}
 
-	tlsConfig := &tls.Config{Certificates: []tls.Certificate{serverCert}}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: caCertPool}
 
 	listener, err := tls.Listen("tcp", "localhost:4000", tlsConfig)
 
-	//listener, err := tls.Listen("tcp", "localhost: 3333", tlsConfig)
 	if err != nil {
 		log.Fatalf("Error listening for TCP connections: %s", err.Error())
 	}
@@ -39,8 +46,23 @@ func main() {
 
 func handleRequest(conn net.Conn) {
 	log.Printf("Handling request from %s", conn.RemoteAddr())
-	//io.Copy(conn, conn)
-	conn.Write([]byte("Hi there"))
-	conn.Close()
-	log.Printf("Done handling request from %s", conn.RemoteAddr())
+	tlsConn, ok := conn.(*tls.Conn)
+	defer conn.Close()
+	if ok {
+		// Server gets client cert after first i/o, so we explicitly call Handshake() to get the cert
+		tlsConn.Handshake()
+		logCertDetails(tlsConn.ConnectionState())
+		conn.Write([]byte("Hi there"))
+		log.Printf("Done handling request from %s", conn.RemoteAddr())
+	} else {
+		log.Print("Couldn't cast connection to TCP conn")
+
+	}
+}
+
+func logCertDetails(state tls.ConnectionState) {
+	log.Printf("Connection server name: %s", state.ServerName)
+	for _, cert := range state.PeerCertificates {
+		log.Printf("Email addresses: %s", cert.EmailAddresses)
+	}
 }
