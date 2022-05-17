@@ -12,7 +12,7 @@ import (
 	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
 )
 
-/**
+/*
 By default Go runs tests for a package sequentially, so we're fine sharing ports like this
 across tests. If we wanted to speed them up and run in parallel we'd have to get fancier (e.g.) dynamically
 generate them, but they're running in < .1 seconds as it is.

@@ -20,7 +20,7 @@ type host struct {
 	connectionCount *atomic.Counter
 }
 
-/**
+/*
 LoadBalancer is a least-connections load balancer. It keeps track of the number
 of connections to a group of hosts, and routes a request to whichever host has the fewest
 at the time the request is processed.
@@ -33,7 +33,7 @@ type LoadBalancer struct {
 	dialer *net.Dialer
 }
 
-/**
+/*
 NewLoadBalancer constructs a new least-connections load balancer to route
 requests to the slice of TCP addresses provided. Clients should construct a separate
 LoadBalancer for each upstream application they wish to load balance.
@@ -50,7 +50,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
 	return &LoadBalancer{hosts, &net.Dialer{Timeout: 3 * time.Second}}
 }
 
-/**
+/*
 HandleConnection takes a TCP connection, finds a suitable host to handle it,
 then connects to the host and streams data between the connection and host until
 both sides of the connection are closed.

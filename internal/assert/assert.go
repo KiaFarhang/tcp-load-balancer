@@ -1,4 +1,4 @@
-/**
+/*
 Package assert implements simple assertion functions for use in tests.
 
 TODO: in reality we'd probably want a library like testify, but this is fine
