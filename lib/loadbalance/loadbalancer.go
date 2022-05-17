@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/KiaFarhang/tcp-load-balancer/lib/atomic"
+	"github.com/KiaFarhang/tcp-load-balancer/internal/atomic"
 )
 
 // host is an individual server that can take traffic from the load balancer.
