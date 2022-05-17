@@ -1,18 +1,25 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"io"
+	"io/ioutil"
 	"log"
-	"net"
 )
 
 func main() {
-	address, err := net.ResolveTCPAddr("tcp", ":4000")
+	caCert, err := ioutil.ReadFile("certs/ca/CA.pem")
 	if err != nil {
-		log.Fatalf("Error resolving TCP address: %s", err.Error())
+		log.Fatalf("Error reading CA cert file: %s", err.Error())
 	}
 
-	connection, err := net.DialTCP("tcp", nil, address)
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{RootCAs: caCertPool}
+
+	connection, err := tls.Dial("tcp", "localhost:4000", tlsConfig)
 
 	if err != nil {
 		log.Fatalf("Error dialing TCP: %s", err.Error())

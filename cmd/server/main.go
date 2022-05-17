@@ -1,21 +1,22 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 )
 
 func main() {
-	// serverCert, err := tls.LoadX509KeyPair("certs/server/localhost.crt", "certs/server/localhost.key")
-	// if err != nil {
-	// 	log.Fatalf("Error loading server key pair: %s", err.Error())
-	// }
+	serverCert, err := tls.LoadX509KeyPair("certs/server/localhost.crt", "certs/server/localhost.key")
+	if err != nil {
+		log.Fatalf("Error loading server key pair: %s", err.Error())
+	}
 
 	// clientCertPool := x509.NewCertPool()
 
-	// tlsConfig := &tls.Config{Certificates: []tls.Certificate{serverCert}, ClientCAs: clientCertPool, ClientAuth: tls.RequireAndVerifyClientCert}
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{serverCert}}
 
-	listener, err := net.Listen("tcp", "localhost:4000")
+	listener, err := tls.Listen("tcp", "localhost:4000", tlsConfig)
 
 	//listener, err := tls.Listen("tcp", "localhost: 3333", tlsConfig)
 	if err != nil {
