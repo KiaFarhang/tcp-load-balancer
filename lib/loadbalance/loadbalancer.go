@@ -10,6 +10,10 @@ import (
 	"github.com/KiaFarhang/tcp-load-balancer/internal/atomic"
 )
 
+const (
+	internalServerErrorMessage string = "Internal server error"
+)
+
 // host is an individual server that can take traffic from the load balancer.
 type host struct {
 	address         *net.TCPAddr
@@ -61,7 +65,7 @@ func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
-		conn.Write([]byte("Internal server error"))
+		conn.Write([]byte(internalServerErrorMessage))
 		conn.Close()
 		return
 	}
