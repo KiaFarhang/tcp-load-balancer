@@ -22,10 +22,12 @@ const (
 )
 
 func TestLoadBalancer(t *testing.T) {
-	t.Run("Forwards upstream's request to the connected client", func(t *testing.T) {
+	t.Run("Forwards upstream's response to the connected client", func(t *testing.T) {
 		if testing.Short() {
 			t.Skip()
 		}
+
+		upstreamResponse := "Hello World"
 
 		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
 		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
@@ -40,21 +42,13 @@ func TestLoadBalancer(t *testing.T) {
 		}
 
 		upstreamHandler := func(conn net.Conn) {
-			conn.Write([]byte("Hello World"))
+			conn.Write([]byte(upstreamResponse))
 			conn.Close()
 		}
 
-		go func() {
-			conn, err := loadBalancerListener.Accept()
-			assert.NoError(t, err)
-			loadBalancerHandler(conn)
-		}()
+		runTCPListener(t, loadBalancerListener, loadBalancerHandler)
 
-		go func() {
-			conn, err := upstreamListener.Accept()
-			assert.NoError(t, err)
-			upstreamHandler(conn)
-		}()
+		runTCPListener(t, upstreamListener, upstreamHandler)
 
 		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
 		assert.NoError(t, err)
@@ -62,10 +56,10 @@ func TestLoadBalancer(t *testing.T) {
 		bytes, err := io.ReadAll(conn)
 		assert.NoError(t, err)
 
-		assert.Equal(t, string(bytes), "Hello World")
+		assert.Equal(t, string(bytes), upstreamResponse)
 	})
 
-	t.Run("Test", func(t *testing.T) {
+	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
 		if testing.Short() {
 			t.Skip()
 		}
@@ -83,11 +77,7 @@ func TestLoadBalancer(t *testing.T) {
 			loadBalancer.HandleConnection(context.Background(), conn)
 		}
 
-		go func() {
-			conn, err := loadBalancerListener.Accept()
-			assert.NoError(t, err)
-			loadBalancerHandler(conn)
-		}()
+		runTCPListener(t, loadBalancerListener, loadBalancerHandler)
 
 		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
 		assert.NoError(t, err)
@@ -101,11 +91,9 @@ func TestLoadBalancer(t *testing.T) {
 
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 	t.Run("Always returns the host with the least connections", func(t *testing.T) {
-		host1, err := net.ResolveTCPAddr("tcp", ":1111")
-		assert.NoError(t, err)
+		host1 := getTCPAddress(t, 1111)
 
-		host2, err := net.ResolveTCPAddr("tcp", ":2222")
-		assert.NoError(t, err)
+		host2 := getTCPAddress(t, 2222)
 
 		lb := NewLoadBalancer([]*net.TCPAddr{host1, host2})
 
@@ -127,11 +115,9 @@ func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 		wg.Wait()
 	})
 	t.Run("Defaults to lower-index host in case of a tie", func(t *testing.T) {
-		host1, err := net.ResolveTCPAddr("tcp", ":1111")
-		assert.NoError(t, err)
+		host1 := getTCPAddress(t, 1111)
 
-		host2, err := net.ResolveTCPAddr("tcp", ":2222")
-		assert.NoError(t, err)
+		host2 := getTCPAddress(t, 2222)
 
 		lb := NewLoadBalancer([]*net.TCPAddr{host1, host2})
 
@@ -168,4 +154,13 @@ func getTCPListener(t *testing.T, address *net.TCPAddr) *net.TCPListener {
 	})
 
 	return listener
+}
+
+func runTCPListener(t *testing.T, listener *net.TCPListener, handler func(conn net.Conn)) {
+	t.Helper()
+	go func() {
+		conn, err := listener.Accept()
+		assert.NoError(t, err)
+		handler(conn)
+	}()
 }
