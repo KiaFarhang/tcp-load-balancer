@@ -48,7 +48,7 @@ func NewRateLimiter(requestsPerClient map[string]int) *RateLimiter
 
 (To keep things simple, we'll only allow per-second limits rather than customizing the timeframe used)
 
-Consumers of the library can find out whether a request is allowed using the `isRequestAllowed` function:
+Consumers of the library can find out whether a request is allowed using the `IsRequestAllowed` function:
 
 ```go
 func (rl *RateLimiter) IsRequestAllowed(ctx context.Context, clientId string) (bool, error)
@@ -60,7 +60,17 @@ The bucket will use a mutex to synchronize access to its token count to prevent 
 
 ## Server
 
-The server is responsible for authentication and authorization before handing off the main work to the load balancing library. Authentication will be done with mTLS, with certificates stored in the repo for the sake of simplicity. Authorization will also be hard coded; we'll simply keep a struct of which upstreams are available to which clients.
+The server is responsible for authentication and authorization before handing off the main work to the load balancing library. Authentication will be done with mTLS, with certificates stored in the repo for the sake of simplicity. Authorization will also be hard coded; the server will keep a map of upstream port to clients allowed to access the upstream fronted by that port. 
+
+For auth purposes we'll define "clients" as the email address in the SAN of the client cert. So our in-memory auth map might look something like this:
+
+```go
+allowedUpstreams := map[int][]string{7777: []string{"admin@example.com", "user@example.com"}, 8888: []string{"admin@example.com"}}
+```
+
+Upon receiving a request at port 7777 (say for upstream A), the server will read the email(s) in the cert's SAN. If any of them are in the list of allowed emails for that port, the request will be considered authorized.
+
+This will let us use the same root CA for all clients but give us finer-grained control over which clients can access which upstreams.
 
 The server will accept TCP connections on a dedicated port for each upstream - e.g. port 7777 for application A, port 8888 for application B. Whenever it receives a connection, it will spin up a goroutine to handle it like so:
 
