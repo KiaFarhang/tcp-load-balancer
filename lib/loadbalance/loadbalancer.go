@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	internalServerErrorMessage string = "Internal server error"
+	internalServerErrorMessage          string = "Internal server error"
+	connectionToUpstreamTimedOutMessage string = "Timed out connecting to upstream"
 )
 
 // host is an individual server that can take traffic from the load balancer.
@@ -65,7 +66,12 @@ func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
-		conn.Write([]byte(internalServerErrorMessage))
+		select {
+		case <-ctx.Done():
+			conn.Write([]byte(connectionToUpstreamTimedOutMessage))
+		default:
+			conn.Write([]byte(internalServerErrorMessage))
+		}
 		conn.Close()
 		return
 	}
