@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
 )
@@ -23,7 +24,7 @@ const (
 )
 
 func TestLoadBalancer(t *testing.T) {
-	t.Run("Here goes", func(t *testing.T) {
+	t.Run("Forwards upstream's response to the connected client", func(t *testing.T) {
 
 		upstreamResponse := "Hello World"
 
@@ -48,69 +49,21 @@ func TestLoadBalancer(t *testing.T) {
 
 		bytes, err := io.ReadAll(conn)
 		assert.NoError(t, err)
-
-		assert.Equal(t, string(bytes), upstreamResponse)
-
 		conn.Close()
+
 		loadBalancerServer.stop()
 		upstreamServer.stop()
-	})
-	t.Run("Forwards upstream's response to the connected client", func(t *testing.T) {
-		t.Skip()
-		if testing.Short() {
-			t.Skip()
-		}
-
-		upstreamResponse := "Hello World"
-
-		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
-
-		upstreamAddress := getTCPAddress(t, upstreamAPort)
-		upstreamListener := getTCPListener(t, upstreamAddress)
-
-		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
-
-		loadBalancerHandler := func(conn net.Conn) {
-			loadBalancer.HandleConnection(context.Background(), conn)
-		}
-
-		upstreamHandler := func(conn net.Conn) {
-			conn.Write([]byte(upstreamResponse))
-			conn.Close()
-		}
-
-		loadBalancerStopChannel := make(chan struct{})
-		upstreamStopChannel := make(chan struct{})
-
-		runTCPListener2(t, loadBalancerListener, loadBalancerHandler, loadBalancerStopChannel)
-
-		runTCPListener2(t, upstreamListener, upstreamHandler, upstreamStopChannel)
-
-		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
-		assert.NoError(t, err)
-
-		bytes, err := io.ReadAll(conn)
-		assert.NoError(t, err)
-
-		loadBalancerStopChannel <- struct{}{}
-		upstreamStopChannel <- struct{}{}
 
 		assert.Equal(t, string(bytes), upstreamResponse)
 	})
 
 	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
-		t.Skip()
 		if testing.Short() {
 			t.Skip()
 		}
 
 		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
-
 		upstreamAddress := getTCPAddress(t, upstreamAPort)
-
-		// Deliberately not listening on the upstream address to force a connection error...
 
 		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
 
@@ -118,21 +71,23 @@ func TestLoadBalancer(t *testing.T) {
 			loadBalancer.HandleConnection(context.Background(), conn)
 		}
 
-		runTCPListener(t, loadBalancerListener, loadBalancerHandler)
+		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
+
+		// Deliberately not listening on the upstream address to force a connection error...
 
 		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
 		assert.NoError(t, err)
 
 		bytes, err := io.ReadAll(conn)
 		assert.NoError(t, err)
+		conn.Close()
+
+		loadBalancerServer.stop()
 
 		assert.Equal(t, string(bytes), internalServerErrorMessage)
 	})
-}
 
-func Test(t *testing.T) {
 	t.Run("Balances between upstreams", func(t *testing.T) {
-		t.Skip()
 		if testing.Short() {
 			t.Skip()
 		}
@@ -141,13 +96,8 @@ func Test(t *testing.T) {
 		upstreamBResponse := "Hello from upstream B"
 
 		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
-
 		upstreamAAddress := getTCPAddress(t, upstreamAPort)
-		upstreamAListener := getTCPListener(t, upstreamAAddress)
-
 		upstreamBAddress := getTCPAddress(t, upstreamBPort)
-		upstreamBListener := getTCPListener(t, upstreamBAddress)
 
 		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAAddress, upstreamBAddress})
 
@@ -157,7 +107,7 @@ func Test(t *testing.T) {
 
 		upstreamAHandler := func(conn net.Conn) {
 			// Hold the connection open; the LB should route a second request to the other upstream
-			//time.Sleep(3 * time.Second)
+			time.Sleep(3 * time.Second)
 			conn.Write([]byte(upstreamAResponse))
 			conn.Close()
 		}
@@ -167,11 +117,9 @@ func Test(t *testing.T) {
 			conn.Close()
 		}
 
-		runTCPListener(t, loadBalancerListener, loadBalancerHandler)
-
-		runTCPListener(t, upstreamAListener, upstreamAHandler)
-
-		runTCPListener(t, upstreamBListener, upstreamBHandler)
+		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
+		upstreamAServer := newServer(t, upstreamAAddress, upstreamAHandler)
+		upstreamBServer := newServer(t, upstreamBAddress, upstreamBHandler)
 
 		var waitGroup sync.WaitGroup
 
@@ -187,6 +135,8 @@ func Test(t *testing.T) {
 		}()
 
 		go func() {
+			// Super hacky way to force this connection to come in once the first connection is already established
+			time.Sleep(1 * time.Second)
 			secondConn, _ = net.DialTCP("tcp", nil, loadBalancerAddress)
 			//assert.NoError(t, err)
 			waitGroup.Done()
@@ -196,13 +146,19 @@ func Test(t *testing.T) {
 
 		firstResponseBytes, err := io.ReadAll(firstConn)
 		assert.NoError(t, err)
-
-		assert.Equal(t, string(firstResponseBytes), upstreamAResponse)
+		firstConn.Close()
 
 		secondResponseBytes, err := io.ReadAll(secondConn)
 		assert.NoError(t, err)
+		secondConn.Close()
 
+		loadBalancerServer.stop()
+		upstreamAServer.stop()
+		upstreamBServer.stop()
+
+		assert.Equal(t, string(firstResponseBytes), upstreamAResponse)
 		assert.Equal(t, string(secondResponseBytes), upstreamBResponse)
+
 	})
 }
 
@@ -261,52 +217,11 @@ func getTCPAddress(t *testing.T, port int) *net.TCPAddr {
 	return address
 }
 
-func getTCPListener(t *testing.T, address *net.TCPAddr) *net.TCPListener {
-	t.Helper()
-	listener, err := net.ListenTCP("tcp", address)
-	assert.NoError(t, err)
-
-	// t.Cleanup(func() {
-	// 	listener.Close()
-	// })
-
-	return listener
-}
-
-func runTCPListener(t *testing.T, listener *net.TCPListener, handler func(conn net.Conn)) {
-	t.Helper()
-	// go func() {
-	// 	for {
-	// 		conn, err := listener.Accept()
-	// 		assert.NoError(t, err)
-	// 		go handler(conn)
-	// 	}
-	// }()
-
-	conn, err := listener.Accept()
-	assert.NoError(t, err)
-	handler(conn)
-}
-
-func runTCPListener2(t *testing.T, listener net.Listener, handler func(conn net.Conn), stopChannel chan struct{}) {
-	t.Helper()
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				select {
-				case <-stopChannel:
-					// This is fine; we wanted to stop
-					return
-				default:
-					t.Errorf("Unexpected error listening for connections: %s", err.Error())
-				}
-			}
-			go handler(conn)
-		}
-	}()
-}
-
+/*
+A graceful way to spin up + shut down servers for use in tests.
+Shamelessly adapted from:
+https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
+*/
 type server struct {
 	listener  net.Listener
 	handler   func(conn net.Conn)
