@@ -57,36 +57,6 @@ func TestLoadBalancer(t *testing.T) {
 		assert.Equal(t, string(bytes), upstreamResponse)
 	})
 
-	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
-		if testing.Short() {
-			t.Skip()
-		}
-
-		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-		upstreamAddress := getTCPAddress(t, upstreamAPort)
-
-		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
-
-		loadBalancerHandler := func(conn net.Conn) {
-			loadBalancer.HandleConnection(context.Background(), conn)
-		}
-
-		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
-
-		// Deliberately not listening on the upstream address to force a connection error...
-
-		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
-		assert.NoError(t, err)
-
-		bytes, err := io.ReadAll(conn)
-		assert.NoError(t, err)
-		conn.Close()
-
-		loadBalancerServer.stop()
-
-		assert.Equal(t, string(bytes), internalServerErrorMessage)
-	})
-
 	t.Run("Balances between upstreams", func(t *testing.T) {
 		if testing.Short() {
 			t.Skip()
@@ -126,23 +96,26 @@ func TestLoadBalancer(t *testing.T) {
 		waitGroup.Add(2)
 
 		var firstConn *net.TCPConn
+		var firstConnErr error
 		var secondConn *net.TCPConn
+		var secondConnErr error
 
 		go func() {
-			firstConn, _ = net.DialTCP("tcp", nil, loadBalancerAddress)
-			//assert.NoError(t, err)
+			firstConn, firstConnErr = net.DialTCP("tcp", nil, loadBalancerAddress)
 			waitGroup.Done()
 		}()
 
 		go func() {
-			// Super hacky way to force this connection to come in once the first connection is already established
+			// Super hacky way to force this connection to come in after the first is waiting, so it'll route to the other upstream
 			time.Sleep(1 * time.Second)
-			secondConn, _ = net.DialTCP("tcp", nil, loadBalancerAddress)
-			//assert.NoError(t, err)
+			secondConn, secondConnErr = net.DialTCP("tcp", nil, loadBalancerAddress)
 			waitGroup.Done()
 		}()
 
 		waitGroup.Wait()
+
+		assert.NoError(t, firstConnErr)
+		assert.NoError(t, secondConnErr)
 
 		firstResponseBytes, err := io.ReadAll(firstConn)
 		assert.NoError(t, err)
@@ -160,6 +133,37 @@ func TestLoadBalancer(t *testing.T) {
 		assert.Equal(t, string(secondResponseBytes), upstreamBResponse)
 
 	})
+
+	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip()
+		}
+
+		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
+		upstreamAddress := getTCPAddress(t, upstreamAPort)
+
+		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
+
+		loadBalancerHandler := func(conn net.Conn) {
+			loadBalancer.HandleConnection(context.Background(), conn)
+		}
+
+		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
+
+		// Deliberately not listening on the upstream address to force a connection error...
+
+		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
+		assert.NoError(t, err)
+
+		bytes, err := io.ReadAll(conn)
+		assert.NoError(t, err)
+		conn.Close()
+
+		loadBalancerServer.stop()
+
+		assert.Equal(t, string(bytes), internalServerErrorMessage)
+	})
+
 }
 
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
@@ -258,6 +262,7 @@ func (s *server) serve() {
 		if err != nil {
 			select {
 			case <-s.quit:
+				// Error is fine in this case; we just stopped the server
 				return
 			default:
 				s.t.Errorf("Error accepting connection: %s", err)
