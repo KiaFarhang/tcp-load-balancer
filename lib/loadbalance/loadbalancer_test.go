@@ -11,6 +11,11 @@ import (
 	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
 )
 
+/**
+By default Go runs tests for a package sequentially, so we're fine sharing ports like this
+across tests. If we wanted to speed them up and run in parallel we'd have to get fancier (e.g.) dynamically
+generate them, but they're running in < .1 seconds as it is.
+*/
 const (
 	loadBalancerPort int = 4444
 	upstreamAPort    int = 5555
@@ -23,19 +28,10 @@ func TestLoadBalancer(t *testing.T) {
 		}
 
 		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-
-		loadBalancerListener, err := net.ListenTCP("tcp", loadBalancerAddress)
-		assert.NoError(t, err)
-
-		defer loadBalancerListener.Close()
+		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
 
 		upstreamAddress := getTCPAddress(t, upstreamAPort)
-
-		upstreamListener, err := net.ListenTCP("tcp", upstreamAddress)
-
-		assert.NoError(t, err)
-
-		defer upstreamListener.Close()
+		upstreamListener := getTCPListener(t, upstreamAddress)
 
 		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
 
@@ -68,46 +64,39 @@ func TestLoadBalancer(t *testing.T) {
 
 		assert.Equal(t, string(bytes), "Hello World")
 	})
-}
 
-func TestLoadBalancer_ErrorConnectingToUpstream(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
+	t.Run("Test", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip()
+		}
 
-	loadBalancerAddress, err := net.ResolveTCPAddr("tcp", ":6666")
-	assert.NoError(t, err)
+		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
+		loadBalancerListener := getTCPListener(t, loadBalancerAddress)
 
-	loadBalancerListener, err := net.ListenTCP("tcp", loadBalancerAddress)
+		upstreamAddress := getTCPAddress(t, upstreamAPort)
 
-	assert.NoError(t, err)
+		// Deliberately not listening on the upstream address to force a connection error...
 
-	defer loadBalancerListener.Close()
+		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
 
-	upstreamAddress, err := net.ResolveTCPAddr("tcp", ":7777")
-	assert.NoError(t, err)
+		loadBalancerHandler := func(conn net.Conn) {
+			loadBalancer.HandleConnection(context.Background(), conn)
+		}
 
-	// Deliberately not listening on the upstream address to force a connection error...
+		go func() {
+			conn, err := loadBalancerListener.Accept()
+			assert.NoError(t, err)
+			loadBalancerHandler(conn)
+		}()
 
-	loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
-
-	loadBalancerHandler := func(conn net.Conn) {
-		loadBalancer.HandleConnection(context.Background(), conn)
-	}
-
-	go func() {
-		conn, err := loadBalancerListener.Accept()
+		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
 		assert.NoError(t, err)
-		loadBalancerHandler(conn)
-	}()
 
-	conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
-	assert.NoError(t, err)
+		bytes, err := io.ReadAll(conn)
+		assert.NoError(t, err)
 
-	bytes, err := io.ReadAll(conn)
-	assert.NoError(t, err)
-
-	assert.Equal(t, string(bytes), internalServerErrorMessage)
+		assert.Equal(t, string(bytes), internalServerErrorMessage)
+	})
 }
 
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
@@ -167,4 +156,16 @@ func getTCPAddress(t *testing.T, port int) *net.TCPAddr {
 	address, err := net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(port))
 	assert.NoError(t, err)
 	return address
+}
+
+func getTCPListener(t *testing.T, address *net.TCPAddr) *net.TCPListener {
+	t.Helper()
+	listener, err := net.ListenTCP("tcp", address)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+
+	return listener
 }
