@@ -29,8 +29,7 @@ Balancer is a least-connections load balancer. It keeps track of the number
 of connections to a group of hosts, and routes a request to whichever host has the fewest
 at the time the request is processed.
 
-If two hosts have the same number of connections, the Balancer will always select whichever
-host had the lower index in the list of hosts originally passed to it.
+If two hosts have the same number of connections, the Balancer will select a host at random.
 */
 type Balancer struct {
 	hosts  []*host

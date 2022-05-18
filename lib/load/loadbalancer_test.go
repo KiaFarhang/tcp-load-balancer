@@ -101,14 +101,16 @@ func TestLoadBalancer(t *testing.T) {
 		var secondConn *net.TCPConn
 		var secondConnErr error
 
+		firstConnEstablished := make(chan struct{})
+
 		go func() {
 			firstConn, firstConnErr = net.DialTCP("tcp", nil, loadBalancerAddress)
+			firstConnEstablished <- struct{}{}
 			waitGroup.Done()
 		}()
 
 		go func() {
-			// Super hacky way to force this connection to come in after the first is waiting, so it'll route to the other upstream
-			time.Sleep(1 * time.Second)
+			<-firstConnEstablished
 			secondConn, secondConnErr = net.DialTCP("tcp", nil, loadBalancerAddress)
 			waitGroup.Done()
 		}()
@@ -130,11 +132,24 @@ func TestLoadBalancer(t *testing.T) {
 		upstreamAServer.stop()
 		upstreamBServer.stop()
 
-		// TODO: this test is flaky because it relies on iteration order, which is no longer
-		// guaranteed because we use a map
-		assert.Equal(t, upstreamAResponse, string(firstResponseBytes))
-		assert.Equal(t, upstreamBResponse, string(secondResponseBytes))
+		firstResponseString := string(firstResponseBytes)
+		secondResponseString := string(secondResponseBytes)
 
+		/**
+		When none of the hosts have any connections, it's random which will be selected to take the first.
+		This way we ensure both responses look correct regardless of which host a connection was routed to.
+		*/
+		if firstResponseString == upstreamAResponse {
+			assert.Equal(t, upstreamBResponse, secondResponseString)
+		} else if firstResponseString == upstreamBResponse {
+			assert.Equal(t, upstreamAResponse, secondResponseString)
+		} else {
+			t.Errorf(
+				`Unexpected responses from load balancer.
+			First conn response: '%s'
+			Second conn response: '%s'
+			Wanted '%s' and '%s' across the two connections`, firstResponseString, secondResponseString, upstreamAResponse, upstreamAResponse)
+		}
 	})
 
 	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
