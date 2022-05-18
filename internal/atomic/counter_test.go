@@ -55,3 +55,24 @@ func TestAtomicCounter(t *testing.T) {
 	})
 
 }
+
+func BenchmarkAutomicCounter(b *testing.B) {
+	counter := &Counter{}
+
+	var waitGroup sync.WaitGroup
+
+	for i := 0; i < b.N; i++ {
+		waitGroup.Add(1)
+
+		go func() {
+			for c := 0; c < operationsPerThread; c++ {
+				counter.Increment()
+			}
+			waitGroup.Done()
+		}()
+	}
+
+	waitGroup.Wait()
+
+	assert.Equal(b, uint(b.N*operationsPerThread), counter.Get())
+}
