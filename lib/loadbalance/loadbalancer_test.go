@@ -201,18 +201,6 @@ func TestLoadBalancer(t *testing.T) {
 
 }
 
-func TestLoadBalancer_constructor(t *testing.T) {
-	t.Run("Returns an error if the slice of addresses passed is empty", func(t *testing.T) {
-		addresses := make([]*net.TCPAddr, 0)
-		_, err := NewLoadBalancer(addresses)
-		assert.Equal(t, err.Error(), emptyOrNilAddressesMessage)
-	})
-	t.Run("Returns an error if the slice of addresses passed is nil", func(t *testing.T) {
-		_, err := NewLoadBalancer(nil)
-		assert.Equal(t, err.Error(), emptyOrNilAddressesMessage)
-	})
-}
-
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 	t.Run("Always returns the host with the least connections", func(t *testing.T) {
 		host1 := getTCPAddress(t, 1111)

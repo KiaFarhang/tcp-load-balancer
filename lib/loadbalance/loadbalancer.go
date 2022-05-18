@@ -3,7 +3,6 @@ package loadbalance
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"time"
@@ -15,7 +14,6 @@ const (
 	internalServerErrorMessage          string        = "Internal server error"
 	connectionToUpstreamTimedOutMessage string        = "Timed out connecting to upstream"
 	maxConnectionTimeout                time.Duration = 3 * time.Second
-	emptyOrNilAddressesMessage          string        = "slice of addresses passed was empty or nil"
 )
 
 // host is an individual server that can take traffic from the load balancer.
@@ -41,11 +39,17 @@ type LoadBalancer struct {
 NewLoadBalancer constructs a new least-connections load balancer to route
 requests to the slice of TCP addresses provided. Clients should construct a separate
 LoadBalancer for each upstream application they wish to load balance.
+
+An error is returned in any of the following scenarios:
+
+- The slice of addresses passed is empty
+- The slice of addresses passed is nil
+- The slice of addresses contains only nil entries
+
+Duplicate addresses are ignored; if two addresses passed share the same IP, zone and port they
+will be treated as a single host when performing load balancing.
 */
 func NewLoadBalancer(addresses []*net.TCPAddr) (*LoadBalancer, error) {
-	if len(addresses) == 0 {
-		return &LoadBalancer{}, errors.New(emptyOrNilAddressesMessage)
-	}
 	hosts := make([]*host, 0, len(addresses))
 	for _, address := range addresses {
 		host := &host{address: address, connectionCount: &atomic.Counter{}}
