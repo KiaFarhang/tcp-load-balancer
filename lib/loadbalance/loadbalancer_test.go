@@ -168,9 +168,9 @@ func TestLoadBalancer(t *testing.T) {
 		loadBalancer := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
 
 		loadBalancerHandler := func(conn net.Conn) {
-			timeInPast := time.Now().AddDate(-1, 0, 0)
-			expiredContext, _ := context.WithDeadline(context.Background(), timeInPast)
-			loadBalancer.HandleConnection(expiredContext, conn)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			loadBalancer.HandleConnection(ctx, conn)
 		}
 
 		upstreamHandler := func(conn net.Conn) {
