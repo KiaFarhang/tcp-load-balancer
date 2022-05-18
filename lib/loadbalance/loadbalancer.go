@@ -41,7 +41,7 @@ requests to the slice of TCP addresses provided. Clients should construct a sepa
 LoadBalancer for each upstream application they wish to load balance.
 */
 func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
-	var hosts []*host
+	hosts := make([]*host, 0, len(addresses))
 	for _, address := range addresses {
 		host := &host{address: address, connectionCount: &atomic.Counter{}}
 		hosts = append(hosts, host)
