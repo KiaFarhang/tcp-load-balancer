@@ -54,7 +54,7 @@ will be treated as a single host when performing load balancing.
 func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 	validateAddresses, err := validateAndRemoveDuplicateAddresses(addresses)
 	if err != nil {
-		return &Balancer{}, err
+		return nil, err
 	}
 
 	hosts := make([]*host, 0, len(validateAddresses))
@@ -125,11 +125,11 @@ func (b *Balancer) findHostWithLeastConnections() *host {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for _, h := range b.hosts {
+	for i := 1; i < len(b.hosts); i++ {
+		h := b.hosts[i]
 		if h.connectionCount.Get() < host.connectionCount.Get() {
 			host = h
 		}
 	}
-
 	return host
 }

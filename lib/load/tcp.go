@@ -22,9 +22,8 @@ defaulting to the first address in case of a tied number of connections. Rather 
 hit to sort the slice here I figure it's better to leave it as is.
 */
 func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAddr, error) {
-	cleaned := make([]*net.TCPAddr, 0, len(addresses))
 	if len(addresses) == 0 {
-		return cleaned, errors.New(emptyOrNilAddressesMessage)
+		return nil, errors.New(emptyOrNilAddressesMessage)
 	}
 
 	uniqueAddresses := make(map[string]*net.TCPAddr)
@@ -37,12 +36,14 @@ func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAd
 		uniqueAddresses[mapKey] = address
 	}
 
-	for _, address := range uniqueAddresses {
-		cleaned = append(cleaned, address)
+	if len(uniqueAddresses) == 0 {
+		return nil, errors.New(onlyNilAddressesMessage)
 	}
 
-	if len(cleaned) == 0 {
-		return []*net.TCPAddr{}, errors.New(onlyNilAddressesMessage)
+	cleaned := make([]*net.TCPAddr, 0, len(uniqueAddresses))
+
+	for _, address := range uniqueAddresses {
+		cleaned = append(cleaned, address)
 	}
 
 	return cleaned, nil
