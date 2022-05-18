@@ -3,6 +3,7 @@ package loadbalance
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -14,6 +15,7 @@ const (
 	internalServerErrorMessage          string        = "Internal server error"
 	connectionToUpstreamTimedOutMessage string        = "Timed out connecting to upstream"
 	maxConnectionTimeout                time.Duration = 3 * time.Second
+	emptyOrNilAddressesMessage          string        = "slice of addresses passed was empty or nil"
 )
 
 // host is an individual server that can take traffic from the load balancer.
@@ -40,7 +42,10 @@ NewLoadBalancer constructs a new least-connections load balancer to route
 requests to the slice of TCP addresses provided. Clients should construct a separate
 LoadBalancer for each upstream application they wish to load balance.
 */
-func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
+func NewLoadBalancer(addresses []*net.TCPAddr) (*LoadBalancer, error) {
+	if len(addresses) == 0 {
+		return &LoadBalancer{}, errors.New(emptyOrNilAddressesMessage)
+	}
 	hosts := make([]*host, 0, len(addresses))
 	for _, address := range addresses {
 		host := &host{address: address, connectionCount: &atomic.Counter{}}
@@ -50,7 +55,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) *LoadBalancer {
 	// I believe when both a context and a dialer have a timeout the shorter value
 	// is respected; this protects us from clients passing in a no-timeout context
 	// and our dial deadlocking when we can't connect to the upstream.
-	return &LoadBalancer{hosts, &net.Dialer{Timeout: maxConnectionTimeout}}
+	return &LoadBalancer{hosts, &net.Dialer{Timeout: maxConnectionTimeout}}, nil
 }
 
 /*
