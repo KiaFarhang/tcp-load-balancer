@@ -135,9 +135,9 @@ func TestLoadBalancer(t *testing.T) {
 		firstResponseString := string(firstResponseBytes)
 		secondResponseString := string(secondResponseBytes)
 
-		/**
-		When none of the hosts have any connections, it's random which will be selected to take the first.
-		This way we ensure both responses look correct regardless of which host a connection was routed to.
+		/*
+			When none of the hosts have any connections, it's random which will be selected to take the first.
+			This way we ensure both responses look correct regardless of which host a connection was routed to.
 		*/
 		if firstResponseString == upstreamAResponse {
 			assert.Equal(t, upstreamBResponse, secondResponseString)
