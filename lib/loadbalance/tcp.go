@@ -12,8 +12,7 @@ const (
 	onlyNilAddressesMessage    string = "slice of addresses contained no non-nil entries"
 )
 
-// TODO: this function name is bad
-func cleanAddresses(addresses []*net.TCPAddr) ([]*net.TCPAddr, error) {
+func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAddr, error) {
 	cleaned := make([]*net.TCPAddr, 0, len(addresses))
 	if len(addresses) == 0 {
 		return cleaned, errors.New(emptyOrNilAddressesMessage)
@@ -42,9 +41,4 @@ func cleanAddresses(addresses []*net.TCPAddr) ([]*net.TCPAddr, error) {
 
 func getMapKeyForAddress(address *net.TCPAddr) string {
 	return strings.Join([]string{address.Zone, address.IP.String(), strconv.Itoa(address.Port)}, "-")
-}
-
-// Assumes a and b are not nil
-func areTCPAddressesEqual(a, b *net.TCPAddr) bool {
-	return a.IP.Equal(b.IP) && a.Port == b.Port && a.Zone == b.Zone
 }
