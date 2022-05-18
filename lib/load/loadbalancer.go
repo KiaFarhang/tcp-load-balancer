@@ -4,6 +4,7 @@ package load
 import (
 	"context"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -93,7 +94,8 @@ func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 		default:
 			conn.Write([]byte(internalServerErrorMessage))
 		}
-		conn.Close()
+		closeErr := conn.Close()
+		log.Printf("Error closing connection after dial failure. Dial error: %s, connection close error: %s", err.Error(), closeErr.Error())
 		return
 	}
 
