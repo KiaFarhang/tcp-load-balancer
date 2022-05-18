@@ -210,7 +210,11 @@ func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 		lb, err := NewLoadBalancer([]*net.TCPAddr{host1, host2})
 		assert.NoError(t, err)
 
-		lb.hosts[0].connectionCount.Increment()
+		for _, host := range lb.hosts {
+			if host.address.Port == 1111 {
+				host.connectionCount.Increment()
+			}
+		}
 
 		var wg sync.WaitGroup
 
@@ -221,28 +225,6 @@ func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 			go func() {
 				h := lb.findHostWithLeastConnections()
 				assert.Equal(t, h.address, host2)
-				wg.Done()
-			}()
-		}
-
-		wg.Wait()
-	})
-	t.Run("Defaults to lower-index host in case of a tie", func(t *testing.T) {
-		host1 := getTCPAddress(t, 1111)
-
-		host2 := getTCPAddress(t, 2222)
-
-		lb, err := NewLoadBalancer([]*net.TCPAddr{host1, host2})
-		assert.NoError(t, err)
-
-		var wg sync.WaitGroup
-
-		wg.Add(100)
-
-		for i := 0; i < 100; i++ {
-			go func() {
-				h := lb.findHostWithLeastConnections()
-				assert.Equal(t, h.address, host1)
 				wg.Done()
 			}()
 		}

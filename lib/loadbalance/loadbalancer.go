@@ -46,12 +46,17 @@ An error is returned in any of the following scenarios:
 - The slice of addresses passed is nil
 - The slice of addresses contains only nil entries
 
-Duplicate addresses are ignored; if two addresses passed share the same IP, zone and port they
+Duplicate addresses are ignored. If two addresses passed share the same IP, zone and port they
 will be treated as a single host when performing load balancing.
 */
 func NewLoadBalancer(addresses []*net.TCPAddr) (*LoadBalancer, error) {
-	hosts := make([]*host, 0, len(addresses))
-	for _, address := range addresses {
+	validateAddresses, err := validateAndRemoveDuplicateAddresses(addresses)
+	if err != nil {
+		return &LoadBalancer{}, err
+	}
+
+	hosts := make([]*host, 0, len(validateAddresses))
+	for _, address := range validateAddresses {
 		host := &host{address: address, connectionCount: &atomic.Counter{}}
 		hosts = append(hosts, host)
 	}
