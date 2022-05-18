@@ -5,7 +5,7 @@ import "sync"
 
 // Counter is a threadsafe integer counter.
 type Counter struct {
-	count int
+	count uint
 	mu    sync.RWMutex
 }
 
@@ -24,7 +24,7 @@ func (a *Counter) Decrement() {
 }
 
 // Get returns the counter's current value.
-func (a *Counter) Get() int {
+func (a *Counter) Get() uint {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.count

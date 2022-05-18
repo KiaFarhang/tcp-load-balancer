@@ -31,10 +31,10 @@ func TestAtomicCounter(t *testing.T) {
 
 		waitGroup.Wait()
 
-		assert.Equal(t, numberOfThreads*operationsPerThread, counter.Get())
+		assert.Equal(t, uint(numberOfThreads*operationsPerThread), counter.Get())
 	})
 	t.Run("Provides thread-safe decrementing", func(t *testing.T) {
-		counter := &Counter{count: numberOfThreads * operationsPerThread}
+		counter := &Counter{count: uint(numberOfThreads * operationsPerThread)}
 
 		var waitGroup sync.WaitGroup
 
@@ -51,7 +51,7 @@ func TestAtomicCounter(t *testing.T) {
 
 		waitGroup.Wait()
 
-		assert.Equal(t, 0, counter.Get())
+		assert.Equal(t, uint(0), counter.Get())
 	})
 
 }
