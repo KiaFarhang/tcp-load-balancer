@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/KiaFarhang/tcp-load-balancer/internal/atomic"
@@ -95,22 +96,23 @@ func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host.connectionCount.Increment()
 	defer host.connectionCount.Decrement()
 
-	done := make(chan struct{})
+	var waitGroup sync.WaitGroup
+
+	waitGroup.Add(2)
 
 	go func() {
 		defer conn.Close()
 		io.Copy(conn, connectionToHost)
-		done <- struct{}{}
+		waitGroup.Done()
 	}()
 
 	go func() {
 		defer connectionToHost.Close()
 		io.Copy(connectionToHost, conn)
-		done <- struct{}{}
+		waitGroup.Done()
 	}()
 
-	<-done
-	<-done
+	waitGroup.Wait()
 }
 
 func (lb *LoadBalancer) findHostWithLeastConnections() *host {
