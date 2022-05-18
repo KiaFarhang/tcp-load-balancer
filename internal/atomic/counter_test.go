@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -31,7 +31,7 @@ func TestAtomicCounter(t *testing.T) {
 
 		waitGroup.Wait()
 
-		assert.Equal(t, counter.Get(), numberOfThreads*operationsPerThread)
+		assert.Equal(t, numberOfThreads*operationsPerThread, counter.Get())
 	})
 	t.Run("Provides thread-safe decrementing", func(t *testing.T) {
 		counter := &Counter{count: numberOfThreads * operationsPerThread}
@@ -51,7 +51,7 @@ func TestAtomicCounter(t *testing.T) {
 
 		waitGroup.Wait()
 
-		assert.Equal(t, counter.Get(), 0)
+		assert.Equal(t, 0, counter.Get())
 	})
 
 }
