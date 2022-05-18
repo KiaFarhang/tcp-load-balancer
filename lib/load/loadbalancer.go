@@ -34,6 +34,7 @@ If two hosts have the same number of connections, the Balancer will select a hos
 type Balancer struct {
 	hosts  []*host
 	dialer *net.Dialer
+	mu     sync.Mutex
 }
 
 /*
@@ -65,7 +66,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 	// I believe when both a context and a dialer have a timeout the shorter value
 	// is respected; this protects us from clients passing in a no-timeout context
 	// and our dial deadlocking when we can't connect to the upstream.
-	return &Balancer{hosts, &net.Dialer{Timeout: maxConnectionTimeout}}, nil
+	return &Balancer{hosts: hosts, dialer: &net.Dialer{Timeout: maxConnectionTimeout}, mu: sync.Mutex{}}, nil
 }
 
 /*
@@ -78,13 +79,13 @@ to the incoming net.Conn and close it. It will also close the net.Conn if the co
 with the host succeeds; callers of HandleConnection do not need to close the net.Conn
 they pass in.
 */
-func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
-	host := lb.findHostWithLeastConnections()
+func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
+	host := b.findHostWithLeastConnections()
 
 	host.connectionCount.Increment()
 	defer host.connectionCount.Decrement()
 
-	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
+	connectionToHost, err := b.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
 		select {
@@ -119,10 +120,12 @@ func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	waitGroup.Wait()
 }
 
-func (lb *Balancer) findHostWithLeastConnections() *host {
-	host := lb.hosts[0]
+func (b *Balancer) findHostWithLeastConnections() *host {
+	host := b.hosts[0]
 
-	for _, h := range lb.hosts {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, h := range b.hosts {
 		if h.connectionCount.Get() < host.connectionCount.Get() {
 			host = h
 		}
