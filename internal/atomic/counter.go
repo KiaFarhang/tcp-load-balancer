@@ -1,31 +1,26 @@
 // Package atomic implements a simple threadsafe counter
 package atomic
 
-import "sync"
+import (
+	"sync/atomic"
+)
 
 // Counter is a threadsafe integer counter.
 type Counter struct {
-	count uint
-	mu    sync.RWMutex
+	count uint64
 }
 
 // Increment increments the counter's value.
 func (a *Counter) Increment() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.count++
+	atomic.AddUint64(&a.count, 1)
 }
 
 // Decrement decrements the counter's value.
 func (a *Counter) Decrement() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.count--
+	atomic.AddUint64(&a.count, ^uint64(0))
 }
 
 // Get returns the counter's current value.
-func (a *Counter) Get() uint {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.count
+func (a *Counter) Get() uint64 {
+	return atomic.LoadUint64(&a.count)
 }
