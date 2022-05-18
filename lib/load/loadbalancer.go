@@ -80,6 +80,10 @@ they pass in.
 */
 func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host := lb.findHostWithLeastConnections()
+
+	host.connectionCount.Increment()
+	defer host.connectionCount.Decrement()
+
 	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
@@ -92,9 +96,6 @@ func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 		conn.Close()
 		return
 	}
-
-	host.connectionCount.Increment()
-	defer host.connectionCount.Decrement()
 
 	var waitGroup sync.WaitGroup
 
