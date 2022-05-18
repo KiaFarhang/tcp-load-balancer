@@ -14,7 +14,7 @@ For example, upstream A is a REST server running on three machines. We would say
 The request forwarding library will implement a least-connections load balancing algorithm to forward TCP connections to a collection of known hosts for a given upstream. A library client (like our server) would create a load balancer for a given upstream using the following signature:
 
 ```go
-func NewLoadBalancer(hosts []*net.TCPAddr) *LoadBalancer
+func NewLoadBalancer(hosts []*net.TCPAddr) *Balancer
 ```
 
 When created, the load balancer would create an internal map of each host to the number of connections the host is currently handling.
@@ -22,7 +22,7 @@ When created, the load balancer would create an internal map of each host to the
 When the server gets a TCP connection, it will pass it to the request forwarding library to route it to the appropriate upstream:
 
 ```go
-func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn)
+func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn)
 ```
 
 At a high level, the `HandleConnection` function will:

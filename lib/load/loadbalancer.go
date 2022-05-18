@@ -1,5 +1,5 @@
-// Package loadbalance implements a least-connections load balancer.
-package loadbalance
+// Package load implements a least-connections load balancer.
+package load
 
 import (
 	"context"
@@ -24,14 +24,14 @@ type host struct {
 }
 
 /*
-LoadBalancer is a least-connections load balancer. It keeps track of the number
+Balancer is a least-connections load balancer. It keeps track of the number
 of connections to a group of hosts, and routes a request to whichever host has the fewest
 at the time the request is processed.
 
-If two hosts have the same number of connections, the LoadBalancer will always select whichever
+If two hosts have the same number of connections, the Balancer will always select whichever
 host had the lower index in the list of hosts originally passed to it.
 */
-type LoadBalancer struct {
+type Balancer struct {
 	hosts  []*host
 	dialer *net.Dialer
 }
@@ -50,10 +50,10 @@ An error is returned in any of the following scenarios:
 Duplicate addresses are ignored. If two addresses passed share the same IP, zone and port they
 will be treated as a single host when performing load balancing.
 */
-func NewLoadBalancer(addresses []*net.TCPAddr) (*LoadBalancer, error) {
+func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 	validateAddresses, err := validateAndRemoveDuplicateAddresses(addresses)
 	if err != nil {
-		return &LoadBalancer{}, err
+		return &Balancer{}, err
 	}
 
 	hosts := make([]*host, 0, len(validateAddresses))
@@ -65,7 +65,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) (*LoadBalancer, error) {
 	// I believe when both a context and a dialer have a timeout the shorter value
 	// is respected; this protects us from clients passing in a no-timeout context
 	// and our dial deadlocking when we can't connect to the upstream.
-	return &LoadBalancer{hosts, &net.Dialer{Timeout: maxConnectionTimeout}}, nil
+	return &Balancer{hosts, &net.Dialer{Timeout: maxConnectionTimeout}}, nil
 }
 
 /*
@@ -78,7 +78,7 @@ to the incoming net.Conn and close it. It will also close the net.Conn if the co
 with the host succeeds; callers of HandleConnection do not need to close the net.Conn
 they pass in.
 */
-func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
+func (lb *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host := lb.findHostWithLeastConnections()
 	connectionToHost, err := lb.dialer.DialContext(ctx, "tcp", host.address.String())
 
@@ -115,7 +115,7 @@ func (lb *LoadBalancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	waitGroup.Wait()
 }
 
-func (lb *LoadBalancer) findHostWithLeastConnections() *host {
+func (lb *Balancer) findHostWithLeastConnections() *host {
 	host := lb.hosts[0]
 
 	for _, h := range lb.hosts {
