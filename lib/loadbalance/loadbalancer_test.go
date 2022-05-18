@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KiaFarhang/tcp-load-balancer/internal/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 /*
@@ -54,7 +54,7 @@ func TestLoadBalancer(t *testing.T) {
 		loadBalancerServer.stop()
 		upstreamServer.stop()
 
-		assert.Equal(t, string(bytes), upstreamResponse)
+		assert.Equal(t, upstreamResponse, string(bytes))
 	})
 
 	t.Run("Balances between upstreams", func(t *testing.T) {
@@ -130,8 +130,10 @@ func TestLoadBalancer(t *testing.T) {
 		upstreamAServer.stop()
 		upstreamBServer.stop()
 
-		assert.Equal(t, string(firstResponseBytes), upstreamAResponse)
-		assert.Equal(t, string(secondResponseBytes), upstreamBResponse)
+		// TODO: this test is flaky because it relies on iteration order, which is no longer
+		// guaranteed because we use a map
+		assert.Equal(t, upstreamAResponse, string(firstResponseBytes))
+		assert.Equal(t, upstreamBResponse, string(secondResponseBytes))
 
 	})
 
@@ -159,7 +161,7 @@ func TestLoadBalancer(t *testing.T) {
 
 		loadBalancerServer.stop()
 
-		assert.Equal(t, string(bytes), internalServerErrorMessage)
+		assert.Equal(t, internalServerErrorMessage, string(bytes))
 	})
 
 	t.Run("Returns an error message to client if connection to upstream times out", func(t *testing.T) {
@@ -196,7 +198,7 @@ func TestLoadBalancer(t *testing.T) {
 		loadBalancerServer.stop()
 		upstreamServer.stop()
 
-		assert.Equal(t, string(bytes), connectionToUpstreamTimedOutMessage)
+		assert.Equal(t, connectionToUpstreamTimedOutMessage, string(bytes))
 	})
 
 }
@@ -224,7 +226,9 @@ func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			go func() {
 				h := lb.findHostWithLeastConnections()
-				assert.Equal(t, h.address, host2)
+				assert.Equal(t, host2.IP, h.address.IP)
+				assert.Equal(t, host2.Port, h.address.Port)
+				assert.Equal(t, host2.Zone, h.address.Zone)
 				wg.Done()
 			}()
 		}
