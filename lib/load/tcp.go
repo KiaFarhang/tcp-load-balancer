@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-const (
-	emptyOrNilAddressesMessage string = "slice of addresses passed was empty or nil"
-	onlyNilAddressesMessage    string = "slice of addresses contained no non-nil entries"
+var (
+	emptyOrNilError       = errors.New("slice of addresses passed was empty or nil")
+	onlyNilAddressesError = errors.New("slice of addresses contained no non-nil entries")
 )
 
 /*
@@ -23,7 +23,7 @@ hit to sort the slice here I figure it's better to leave it as is.
 */
 func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAddr, error) {
 	if len(addresses) == 0 {
-		return nil, errors.New(emptyOrNilAddressesMessage)
+		return nil, emptyOrNilError
 	}
 
 	uniqueAddresses := make(map[string]*net.TCPAddr)
@@ -37,7 +37,7 @@ func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAd
 	}
 
 	if len(uniqueAddresses) == 0 {
-		return nil, errors.New(onlyNilAddressesMessage)
+		return nil, onlyNilAddressesError
 	}
 
 	cleaned := make([]*net.TCPAddr, 0, len(uniqueAddresses))
