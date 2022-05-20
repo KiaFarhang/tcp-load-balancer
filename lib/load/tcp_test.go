@@ -18,16 +18,16 @@ func TestValidateAndRemoveDuplicateAddresses(t *testing.T) {
 	t.Run("Returns an error if the slice of addresses passed is empty", func(t *testing.T) {
 		addresses := make([]*net.TCPAddr, 0)
 		_, err := validateAndRemoveDuplicateAddresses(addresses)
-		assert.ErrorIs(t, err, emptyOrNilError)
+		assert.ErrorIs(t, err, errEmptyOrNilSlice)
 	})
 	t.Run("Returns an error if the slice of addresses passed is nil", func(t *testing.T) {
 		_, err := validateAndRemoveDuplicateAddresses(nil)
-		assert.ErrorIs(t, err, emptyOrNilError)
+		assert.ErrorIs(t, err, errEmptyOrNilSlice)
 	})
 	t.Run("Returns an error if the slice only contains nil addresses", func(t *testing.T) {
 		addresses := []*net.TCPAddr{nil}
 		_, err := validateAndRemoveDuplicateAddresses(addresses)
-		assert.ErrorIs(t, err, onlyNilAddressesError)
+		assert.ErrorIs(t, err, errOnlyNilAddresses)
 	})
 	t.Run("Removes duplicate addresses from the returned slice", func(t *testing.T) {
 		a := &net.TCPAddr{IP: ip, Port: port, Zone: zone}
