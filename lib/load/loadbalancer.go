@@ -60,7 +60,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 		hosts = append(hosts, host)
 	}
 
-	// I believe when both a context and a dialer have a timeout the shorter value
+	// When both a context and a dialer have a timeout the shorter value
 	// is respected; this protects us from clients passing in a no-timeout context
 	// and our dial deadlocking when we can't connect to the upstream.
 	return &Balancer{hosts: hosts, dialer: &net.Dialer{Timeout: maxConnectionTimeout}, mu: sync.Mutex{}}, nil
@@ -84,6 +84,7 @@ func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	connectionToHost, err := b.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
+		// TODO: in a real system we'd probably want to inject the logger via constructor
 		log.Printf("Error dialing host IP %s: %s", host.address.IP.String(), err.Error())
 		closeErr := conn.Close()
 		if closeErr != nil {
