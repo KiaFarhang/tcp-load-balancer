@@ -63,7 +63,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 	// When both a context and a dialer have a timeout the shorter value
 	// is respected; this protects us from clients passing in a no-timeout context
 	// and our dial deadlocking when we can't connect to the upstream.
-	return &Balancer{hosts: hosts, dialer: &net.Dialer{Timeout: maxConnectionTimeout}, mu: sync.Mutex{}}, nil
+	return &Balancer{hosts: hosts, dialer: &net.Dialer{Timeout: maxConnectionTimeout}}, nil
 }
 
 /*
