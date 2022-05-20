@@ -106,13 +106,19 @@ func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 
 	go func() {
 		defer conn.Close()
-		io.Copy(conn, connectionToHost)
+		_, err := io.Copy(conn, connectionToHost)
+		if err != nil {
+			log.Printf("Error copying from host to client: %s", err.Error())
+		}
 		waitGroup.Done()
 	}()
 
 	go func() {
 		defer connectionToHost.Close()
-		io.Copy(connectionToHost, conn)
+		_, err := io.Copy(connectionToHost, conn)
+		if err != nil {
+			log.Printf("Error copying from client to host: %s", err.Error())
+		}
 		waitGroup.Done()
 	}()
 
