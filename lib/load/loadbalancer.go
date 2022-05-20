@@ -124,8 +124,7 @@ func (b *Balancer) findHostWithLeastConnections() *host {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for i := 1; i < len(b.hosts); i++ {
-		h := b.hosts[i]
+	for _, h := range b.hosts[1:] {
 		hConnectionCount := atomic.LoadUint64(&h.connectionCount)
 		hostConnectionCount := atomic.LoadUint64(&host.connectionCount)
 		if hConnectionCount < hostConnectionCount {
