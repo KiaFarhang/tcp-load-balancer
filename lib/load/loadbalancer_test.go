@@ -153,7 +153,7 @@ func TestLoadBalancer(t *testing.T) {
 		}
 	})
 
-	t.Run("Returns an error message to client if connection to upstream fails", func(t *testing.T) {
+	t.Run("Closes the client without writing a message if connection to upstream fails", func(t *testing.T) {
 		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
 		upstreamAddress := getTCPAddress(t, upstreamAPort)
 
@@ -177,46 +177,8 @@ func TestLoadBalancer(t *testing.T) {
 
 		loadBalancerServer.stop()
 
-		assert.Equal(t, internalServerErrorMessage, string(bytes))
+		assert.Equal(t, "", string(bytes))
 	})
-
-	t.Run("Returns an error message to client if connection to upstream times out", func(t *testing.T) {
-		upstreamResponse := "Hello World"
-
-		loadBalancerAddress := getTCPAddress(t, loadBalancerPort)
-		upstreamAddress := getTCPAddress(t, upstreamAPort)
-
-		loadBalancer, err := NewLoadBalancer([]*net.TCPAddr{upstreamAddress})
-		assert.NoError(t, err)
-
-		loadBalancerHandler := func(conn net.Conn) {
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-			loadBalancer.HandleConnection(ctx, conn)
-		}
-
-		upstreamHandler := func(conn net.Conn) {
-			conn.Write([]byte(upstreamResponse))
-			conn.Close()
-		}
-
-		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
-
-		upstreamServer := newServer(t, upstreamAddress, upstreamHandler)
-
-		conn, err := net.DialTCP("tcp", nil, loadBalancerAddress)
-		assert.NoError(t, err)
-
-		bytes, err := io.ReadAll(conn)
-		assert.NoError(t, err)
-		conn.Close()
-
-		loadBalancerServer.stop()
-		upstreamServer.stop()
-
-		assert.Equal(t, connectionToUpstreamTimedOutMessage, string(bytes))
-	})
-
 }
 
 func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {

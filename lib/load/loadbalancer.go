@@ -12,9 +12,7 @@ import (
 )
 
 const (
-	internalServerErrorMessage          string        = "Internal server error"
-	connectionToUpstreamTimedOutMessage string        = "Timed out connecting to upstream"
-	maxConnectionTimeout                time.Duration = 3 * time.Second
+	maxConnectionTimeout time.Duration = 3 * time.Second
 )
 
 // host is an individual server that can take traffic from the load balancer.
@@ -73,10 +71,9 @@ HandleConnection takes a TCP connection, finds a suitable host to handle it,
 then connects to the host and streams data between the connection and host until
 both sides of the connection are closed.
 
-If the connection to the host fails, HandleConnection will write an error message
-to the incoming net.Conn and close it. It will also close the net.Conn if the communication
-with the host succeeds; callers of HandleConnection do not need to close the net.Conn
-they pass in.
+If the connection to the host fails, HandleConnection will close the incoming net.Conn.
+It will also close the net.Conn if the communication with the host succeeds; callers of
+HandleConnection do not need to close the net.Conn they pass in.
 */
 func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host := b.findHostWithLeastConnections()
@@ -87,12 +84,7 @@ func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	connectionToHost, err := b.dialer.DialContext(ctx, "tcp", host.address.String())
 
 	if err != nil {
-		select {
-		case <-ctx.Done():
-			conn.Write([]byte(connectionToUpstreamTimedOutMessage))
-		default:
-			conn.Write([]byte(internalServerErrorMessage))
-		}
+		log.Printf("Error dialing host IP %s: %s", host.address.IP.String(), err.Error())
 		closeErr := conn.Close()
 		if closeErr != nil {
 			log.Printf("Error closing connection after dial failure. Dial error: %s, connection close error: %s", err.Error(), closeErr.Error())
