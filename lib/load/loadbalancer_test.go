@@ -38,8 +38,10 @@ func TestLoadBalancer(t *testing.T) {
 		}
 
 		upstreamHandler := func(conn net.Conn) {
-			conn.Write([]byte(upstreamResponse))
-			conn.Close()
+			_, err := conn.Write([]byte(upstreamResponse))
+			assert.NoError(t, err)
+			err = conn.Close()
+			assert.NoError(t, err)
 		}
 
 		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
@@ -50,7 +52,8 @@ func TestLoadBalancer(t *testing.T) {
 
 		bytes, err := io.ReadAll(conn)
 		assert.NoError(t, err)
-		conn.Close()
+		err = conn.Close()
+		assert.NoError(t, err)
 
 		loadBalancerServer.stop()
 		upstreamServer.stop()
@@ -80,13 +83,17 @@ func TestLoadBalancer(t *testing.T) {
 		upstreamAHandler := func(conn net.Conn) {
 			// Hold the connection open; the LB should route a second request to the other upstream
 			time.Sleep(3 * time.Second)
-			conn.Write([]byte(upstreamAResponse))
-			conn.Close()
+			_, err := conn.Write([]byte(upstreamAResponse))
+			assert.NoError(t, err)
+			err = conn.Close()
+			assert.NoError(t, err)
 		}
 
 		upstreamBHandler := func(conn net.Conn) {
-			conn.Write([]byte(upstreamBResponse))
-			conn.Close()
+			_, err := conn.Write([]byte(upstreamBResponse))
+			assert.NoError(t, err)
+			err = conn.Close()
+			assert.NoError(t, err)
 		}
 
 		loadBalancerServer := newServer(t, loadBalancerAddress, loadBalancerHandler)
@@ -123,11 +130,13 @@ func TestLoadBalancer(t *testing.T) {
 
 		firstResponseBytes, err := io.ReadAll(firstConn)
 		assert.NoError(t, err)
-		firstConn.Close()
+		err = firstConn.Close()
+		assert.NoError(t, err)
 
 		secondResponseBytes, err := io.ReadAll(secondConn)
 		assert.NoError(t, err)
-		secondConn.Close()
+		err = secondConn.Close()
+		assert.NoError(t, err)
 
 		loadBalancerServer.stop()
 		upstreamAServer.stop()
@@ -173,7 +182,8 @@ func TestLoadBalancer(t *testing.T) {
 
 		bytes, err := io.ReadAll(conn)
 		assert.NoError(t, err)
-		conn.Close()
+		err = conn.Close()
+		assert.NoError(t, err)
 
 		loadBalancerServer.stop()
 
