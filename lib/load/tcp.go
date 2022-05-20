@@ -3,8 +3,6 @@ package load
 import (
 	"errors"
 	"net"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -32,7 +30,7 @@ func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAd
 		if address == nil {
 			continue
 		}
-		mapKey := getMapKeyForAddress(address)
+		mapKey := address.String()
 		uniqueAddresses[mapKey] = address
 	}
 
@@ -47,8 +45,4 @@ func validateAndRemoveDuplicateAddresses(addresses []*net.TCPAddr) ([]*net.TCPAd
 	}
 
 	return cleaned, nil
-}
-
-func getMapKeyForAddress(address *net.TCPAddr) string {
-	return strings.Join([]string{address.Zone, address.IP.String(), strconv.Itoa(address.Port)}, "-")
 }
