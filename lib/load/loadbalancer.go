@@ -7,9 +7,8 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	"github.com/KiaFarhang/tcp-load-balancer/internal/atomic"
 )
 
 const (
@@ -21,7 +20,7 @@ const (
 // host is an individual server that can take traffic from the load balancer.
 type host struct {
 	address         *net.TCPAddr
-	connectionCount *atomic.Counter
+	connectionCount uint64
 }
 
 /*
@@ -59,7 +58,7 @@ func NewLoadBalancer(addresses []*net.TCPAddr) (*Balancer, error) {
 
 	hosts := make([]*host, 0, len(validateAddresses))
 	for _, address := range validateAddresses {
-		host := &host{address: address, connectionCount: &atomic.Counter{}}
+		host := &host{address: address, connectionCount: 0}
 		hosts = append(hosts, host)
 	}
 
@@ -82,8 +81,8 @@ they pass in.
 func (b *Balancer) HandleConnection(ctx context.Context, conn net.Conn) {
 	host := b.findHostWithLeastConnections()
 
-	host.connectionCount.Increment()
-	defer host.connectionCount.Decrement()
+	atomic.AddUint64(&host.connectionCount, 1)
+	defer atomic.AddUint64(&host.connectionCount, ^uint64(0))
 
 	connectionToHost, err := b.dialer.DialContext(ctx, "tcp", host.address.String())
 
@@ -127,7 +126,9 @@ func (b *Balancer) findHostWithLeastConnections() *host {
 	defer b.mu.Unlock()
 	for i := 1; i < len(b.hosts); i++ {
 		h := b.hosts[i]
-		if h.connectionCount.Get() < host.connectionCount.Get() {
+		hConnectionCount := atomic.LoadUint64(&h.connectionCount)
+		hostConnectionCount := atomic.LoadUint64(&host.connectionCount)
+		if hConnectionCount < hostConnectionCount {
 			host = h
 		}
 	}

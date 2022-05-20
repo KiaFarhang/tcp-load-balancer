@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -229,7 +230,7 @@ func TestLoadBalancer_findHostWithLeastConnections(t *testing.T) {
 
 		for _, host := range lb.hosts {
 			if host.address.Port == 1111 {
-				host.connectionCount.Increment()
+				atomic.AddUint64(&host.connectionCount, 1)
 			}
 		}
 
